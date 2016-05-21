@@ -1,0 +1,90 @@
+2010-11-07  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-mode): font-lockを有効にする処理を削除。
+	(link-memo-make-link): overlayを使用するように変更。
+	(link-memo-unhighlight-region): overlayを使用するように変更。
+	その他、defadvice font-lock-modeを削除。
+
+2009-03-13  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (font-lock-mode-hook): regexp-optが重いので暫定的にダウングレードさせた。
+	...だけど、すぐに下記の修正をした。
+	(link-memo-pagenames-regexp-cache): regexp-optの結果のキャッシュ追加。
+	(link-memo-pagenames-regexp): regexp-optの結果を返す。キャッシュの再作成が必要な場合は再作成する。
+	(font-lock-mode-hook): regexp-optを直接呼ばずにlink-memo-pagenames-regexpに置き換え。
+	(link-memo-highlight-region): link-memo-pagenames-regexpを使用するように変更。
+
+2009-03-12  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-mode): font-lock-add-keywordsにlink-memo-pagesを追加する際に、
+	regexp-optしてから渡すように変更。
+	(link-memo-mode): font-lock-add-keywordsに多重登録されるなどの不具合を解消するため、キーワード登録処理を外出し。
+
+2009-03-11  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-mode): font-lockと共存するために、キーワード登録処理を追加。
+	(link-memo-make-link): font-lockと共存するためにfaceのforegroundは変更しないように変更。
+
+2008-10-09  Tonjiru  <gudakusan@tonjiru.org>
+
+	* *: もろもろマージ。
+
+2008-10-07  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el: インデントとかコメントの整形。
+
+2008-07-30  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-view-file): 追加。
+
+2008-07-22  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-refresh-pagename-table): 追加。
+
+2008-03-24  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-jump-to-link-view): view-modeで開く機能を追加。
+	(link-memo-search-result-page-map): "*SearchResult*"バッファのキーマップ見直し。(diredっぽくした。)
+
+2006-08-31  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-expand-file-name): ファイル名への展開を統一。また、拡張子なしを許可するような形に変更。
+
+2006-07-11  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-index): ページ一覧機能を追加。
+	* link-memo.el (link-memo-find-file): 既存のページを開く機能を追加。
+
+2006-06-21  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-search): 検索結果のソート順が逆転していて不便なので修正。
+
+2006-05-27  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el: 内部処理の細かい調整。
+	* Ver-1.1: 公開
+
+2006-05-19  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el (link-memo-extension): ファイルに拡張子を認めるように変更。(デフォルトはtxt)
+
+2006-05-09  Tonjiru  <gudakusan@tonjiru.org>
+
+	* link-memo.el: 内部処理の細かい調整。
+
+2006-02-28  Tonjiru  <gudakusan@tonjiru.org>
+
+	* meadow-wiki.el: link-memoへ名称変更。
+	* Ver-1.0: 非公開
+
+2005-09-16  Tonjiru  <gudakusan@tonjiru.org>
+
+	* meadow-wiki.el (meadow-wiki-jump-to-link-other-frame): 機能追加。
+
+2005-05-20  Tonjiru  <gudakusan@tonjiru.org>
+
+	* meadow-wiki.el (meadow-wiki-after-change-function): 以下の不具合を解消。
+	replace-string の置換文字に、
+	リンクとなるような文字列で、かつ検索文字列より長い文字列を指定すると、
+	置換後の長い部分が上書きされる。
+	対策としては、save-match-data を追加。
