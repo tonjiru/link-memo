@@ -48,7 +48,11 @@
 ;; ;; "~/LinkMemos/"以外のディレクトリにファイルを置く場合。
 ;; (setq link-memo-dir
 ;;       '(("memo" . "~/Wiki/")
-;;      ("hexo" . "~/blog/hexo/tonjiru/source/_posts/")
+;;         ("hexo" . "~/blog/hexo/tonjiru/source/_posts/")
+;;      ))
+;; (setq link-memo-extension-list
+;;       '(("memo" . "txt")
+;;         ("hexo" . "md")
 ;;      ))
 ;; ;; モードラインの文字が"LiMe"じゃない方がいい場合
 ;; (setq link-memo-mode-line-string " @")
@@ -81,8 +85,10 @@
   "ファイルの拡張子。
 拡張子の異なるファイルは基本的に無視します。")
 
-(defvar link-memo-default-mode-line-string " LiMe" ;; TODO: 使ってる箇所がない? 入力漏れ?
-  "mode-lineに表示する文字。")
+(defvar link-memo-extension-alist nil
+  "ファイルの拡張子。
+拡張子の異なるファイルは基本的に無視します。
+ドメイン毎に指定可能です。省略した場合は `link-memo-extension' を使用します。")
 
 (defvar link-memo-mode-line-string " LiMe"
   "mode-lineに表示する文字。")
@@ -102,7 +108,7 @@
 (defvar link-memo-link-indicator "^"
   "リンクに表示する記号。")
 
-;; TODO: `defface'に変更を。
+;; TODO: `defface' に変更を。
 (make-face 'link-memo-link-face)
 ;;(set-face-foreground 'link-memo-link-face "#0080e0")
 ;; (set-face-underline-p 'link-memo-link-face t)
@@ -115,7 +121,6 @@
 	(if (null arg) (not link-memo-mode) ; 引数がnullなら、現在と逆の状態にする。
 	  (> (prefix-numeric-value arg) 0)))
   (if link-memo-mode
-      ;; (progn ;; TODO: 削除
       (let ((dirs link-memo-dir)
 	    (dir)
 	    (domain "-"))
@@ -185,7 +190,6 @@
     ;; ハイライト解除
     (link-memo-unhighlight-region region-beg region-end)
 
-    ;; (setq pagenames link-memo-pagenames) ;; TODO: この行要らねんじゃね?
     ;; リージョンの先頭へ移動
     (goto-char region-beg)
     ;; ページ名を検索して
@@ -259,16 +263,13 @@
 	(dir))
     (while dirs
       (setq dir (cdar dirs))
+      (setq domain (caar dirs))
       (let ((files (directory-files (expand-file-name dir) t))
 	    (file))
 	(while files
 	  (setq file (car files))
 	  ;; 有効なファイル名のみ登録する
-	  (if (and (not (file-directory-p file)) ; ディレクトリを除外
-		   (string-match (concat "^.*\\." link-memo-extension "$")
-				 (file-name-nondirectory file)) ; 指定された拡張子のみを許可
-		   (not (backup-file-name-p file)) ; バックアップファイルを除外
-		   (not (string-match "^#.+#$" (file-name-nondirectory file)))) ; 編集中ファイル#...#を除外
+	  (if (link-memo-is-valid-file domain file)
 	      (progn
 		;; ファイル名部分だけを抜き出して登録
 		;; (ソート済のものを処理するので link-memo-add-pagename でのソート不要)
@@ -319,9 +320,7 @@
     ;; リンク先を開く。(とりあえずは、find-file で処理する。)
     (if page
 	(progn
-	  ;; (message "Jump to %s..." page) ;; TODO: 冗長といえば冗長なのでコメントアウトしたが復活させる?
-	  (find-file (link-memo-expand-file-name page (cdr (assoc domain link-memo-dir))))
-	  ;; (message "Jump to %s...done" page)) ;; TODO: 冗長といえば冗長なのでコメントアウトしたが復活させる?
+	  (find-file (link-memo-expand-file-name page domain))
 	  )
       (error "Current point is not link"))))
 
@@ -338,9 +337,9 @@
 	(progn
 	  ;; (message "Jump to %s..." page)
 	  ;; TODO: なんかdomainの考慮が抜けているような... (他の関数も同様)
-	  (find-file-other-frame (link-memo-expand-file-name page))
+	  (find-file-other-frame (link-memo-expand-file-name page domain))
 	  ;; (message "Jump to %s...done" page))
-      (error "Current point is not link")))))
+	  (error "Current point is not link")))))
 
 (defun link-memo-jump-to-link-other-window ()
   "リンク先に飛ぶ。その際に新しいウィンドウを開く"
@@ -354,7 +353,7 @@
     (if page
 	(progn
 	  ;; (message "Jump to %s..." page)
-	  (view-file-other-window (link-memo-expand-file-name page))
+	  (view-file-other-window (link-memo-expand-file-name page domain))
 	  ;; (message "Jump to %s...done" page)
 	  )
       (error "Current point is not link"))))
@@ -370,7 +369,7 @@
     (if page
 	(progn
 	  ;; (message "Jump to %s..." page)
-	  (view-file (link-memo-expand-file-name page))
+	  (view-file (link-memo-expand-file-name page domain))
 	  ;; (message "Jump to %s...done" page)
 	  )
       (error "Current point is not link"))))
@@ -380,13 +379,15 @@
   (interactive)
   (link-memo-search (file-name-sans-extension(buffer-name))))
 
-(defun link-memo-is-valid-file (file)
-  (and (not (file-directory-p file)) ; ディレクトリを除外
-       (string-match (concat "^.*\\." link-memo-extension "$")
-		     (file-name-nondirectory file)) ; 指定された拡張子のみを許可
-       (not (backup-file-name-p file)) ; バックアップファイルを除外
-       (not (string-match "^#.+#$" (file-name-nondirectory file)))) ; 編集中ファイル#...#を除外
-  )
+(defun link-memo-is-valid-file (domain file)
+  (let (ext (cdr (assoc domain link-memo-extension-alist)))
+    (if (not ext) (setq ext link-memo-extension))
+    (and (not (file-directory-p file)) ; ディレクトリを除外
+	 (string-match
+	  (concat "^.*\\." ext "$")
+	  (file-name-nondirectory file)) ; 指定された拡張子のみを許可
+	 (not (backup-file-name-p file)) ; バックアップファイルを除外
+	 (not (string-match "^#.+#$" (file-name-nondirectory file))))))
 
 (defun link-memo-search (search-word)
   "検索"
@@ -407,12 +408,12 @@
 	    (while files
 	      (setq file (car files))
 	      ;; 有効なファイル名のみ検索する
-	      (if (link-memo-is-valid-file file)
+	      (if (link-memo-is-valid-file domain file)
 		  (progn
 		    (setq name (file-name-sans-extension (file-name-nondirectory file)))
 		    (message "Search %s in %s..." search-word name)
 		    ;; 本文を検索
-		    (if (link-memo-search-text dir name search-word)
+		    (if (link-memo-search-text domain name search-word)
 			(setq matched-pages (append `((,name . ,domain)) matched-pages))
 		      )))
 	      (setq files (cdr files))))
@@ -423,12 +424,12 @@
 	  (message "Search %s...done" search-word))
       (error "Search %s...not found" search-word))))
 
-(defun link-memo-search-text (dir name search-word &optional regexp)
+(defun link-memo-search-text (domain name search-word &optional regexp)
   "検索"
   (with-temp-buffer
     ;; ページ名の文字列もテンポラリバッファに突っ込んで検索対象にする。
     (insert name "\n")
-    (insert-file-contents (link-memo-expand-file-name name dir))
+    (insert-file-contents (link-memo-expand-file-name name domain))
     (goto-char (point-min))
     (if regexp
 	(re-search-forward search-word nil t)
@@ -453,7 +454,7 @@
 	    (while files
 	      (setq file (car files))
 	      ;; 有効なファイル名のみ検索する
-	      (if (link-memo-is-valid-file file)
+	      (if (link-memo-is-valid-file domain file)
 		  (progn
 		    (setq name (file-name-sans-extension (file-name-nondirectory file)))
 		    (message "Query %s in %s..." word name)
@@ -462,9 +463,9 @@
 			    (string-match page name))
 			(if (= (length word) 0)
 			    (setq matched-pages (append `((,name . ,domain)) matched-pages))
-			  (if (link-memo-search-text dir name word t)
+			  (if (link-memo-search-text domain name word t)
 			      (setq matched-pages (append `((,name . ,domain)) matched-pages))
-		      )))))
+			    )))))
 	      (setq files (cdr files))))
 	  (setq dirs (cdr dirs)))))
     (if matched-pages
@@ -614,7 +615,7 @@
 	  (if pt (goto-char pt))))
     (setq pt (next-single-property-change (point) 'link-memo-link))
     (if pt (progn ;; (message "current link is \"%s\"." (get-text-property pt 'link-memo-link))
-		  (goto-char pt)))))
+	     (goto-char pt)))))
 
 (defun link-memo-previous-link ()
   "前のリンクを探す。"
@@ -627,15 +628,15 @@
 	  (if pt (goto-char pt))))
     (setq pt (previous-single-property-change (point) 'link-memo-link))
     (if pt (progn ;; (message "current link is \"%s\"." (get-text-property pt 'link-memo-link))
-		  (goto-char pt)))))
+	     (goto-char pt)))))
 
-(defun link-memo-expand-file-name (page &optional dir)
+(defun link-memo-expand-file-name (page &optional domain)
   "pageをフルパスに展開。
 dirは省略可能。指定されたならそこのディレクトリ固定。
 複数のディレクトリにファイルが存在する場合はどれにするか聞く。
 `link-memo-extension'nがnilでなければ拡張子付加する。"
-  (if dir
-      (link-memo-expand-file-name-internal page dir)
+  (if domain
+      (link-memo-expand-file-name-internal page domain)
     (let ((dirs link-memo-dir)
 	  (dir)
 	  (domain)
@@ -643,38 +644,39 @@ dirは省略可能。指定されたならそこのディレクトリ固定。
       (while dirs
 	(setq domain (caar dirs))
 	(setq dir (cdar dirs))
-	(if (file-readable-p (link-memo-expand-file-name-internal page dir))
+	(if (file-readable-p (link-memo-expand-file-name-internal page domain))
 	    (progn
 	      (add-to-list 'choicies `(,domain . ,dir))))
 	(setq dirs (cdr dirs)))
-      (setq dir
+      (setq domain
 	    (if (= (length choicies) 0)
 		;; マッチしない場合はドメインを聞く
-		(cdr (assoc (completing-read (format "Choose dir (default:%s): " (caar link-memo-dir))
-					     link-memo-dir nil t nil nil (caar link-memo-dir))
-			    link-memo-dir))
+		(completing-read (format "Choose dir (default:%s): " (caar link-memo-dir))
+				 link-memo-dir nil t nil nil (caar link-memo-dir))
 	      (if (= (length choicies) 1)
-		  (cdar choicies) ; 直
+		  (caar choicies) ; 直
 		(let ((completion-ignore-case t))
 		  (setq choicies (reverse choicies))
-		  (setq domain (completing-read (format "Choose dir (default:%s): " (caar choicies))
-						choicies nil t nil nil (caar choicies)))
-		  (cdr (assoc-string domain
-				     choicies))))))
-      (link-memo-expand-file-name-internal page dir))))
+		  (completing-read (format "Choose dir (default:%s): " (caar choicies))
+				   choicies nil t nil nil (caar choicies))
+		  ))))
+      (link-memo-expand-file-name-internal page domain))))
 
-(defun link-memo-expand-file-name-internal (page dir)
+(defun link-memo-expand-file-name-internal (page domain)
   "内部向け
 pageをフルパスに展開。
 複数のディレクトリにファイルが存在する場合はどれにするか聞く。
-`link-memo-extension'nがnilでなければ拡張子付加する。"
-  (if link-memo-extension
+その際 `link-memo-extension-list' の内容に応じて拡張子付加する。
+nil の場合は付加しない。
+要素が 1つの場合はその内容を付加する。
+複数存在する場合は問い合わせる。"
+  (let ((ext (cdr (assoc domain link-memo-extension-alist)))
+	(dir (cdr (assoc domain link-memo-dir))))
+    (if ext
+	(concat (expand-file-name dir)
+		page "." ext)
       (concat (expand-file-name dir)
-	      page
-	      "."
-	      link-memo-extension)
-    (concat (expand-file-name dir)
-	    page)))
+	      page))))
 
 (defun link-memo-view-random-file ()
   "ランダムで開く。
@@ -694,27 +696,11 @@ pageをフルパスに展開。
 
 (defun link-memo-pagenames-regexp ()
   "`link-memo-pagenames'をregexp-optした文字列を返す。"
-  ;; TODO: (18886 59627 465000) (18887 3893 156000) のようなパターンでうまくいかない
-  ;; (if (or (null link-memo-pagenames-regexp-cache-build-time)
-  ;; 	  (and (<= (nth 0 link-memo-pagenames-regexp-cache-build-time)
-  ;; 		   (nth 0 link-memo-pagenames-modify-time))
-  ;; 	       (<= (nth 1 link-memo-pagenames-regexp-cache-build-time)
-  ;; 		   (nth 1 link-memo-pagenames-modify-time))
-  ;; 	       (< (nth 2 link-memo-pagenames-regexp-cache-build-time)
-  ;; 		  (nth 2 link-memo-pagenames-modify-time))))
-  ;; TODO: これでもだめ
-  ;;(if (or (null link-memo-pagenames-regexp-cache-build-time)
-  ;;	  (< (nth 0 link-memo-pagenames-regexp-cache-build-time)
-  ;;	     (nth 0 link-memo-pagenames-modify-time))
-  ;;	  (< (nth 1 link-memo-pagenames-regexp-cache-build-time)
-  ;;	     (nth 1 link-memo-pagenames-modify-time))
-  ;;	  (< (nth 2 link-memo-pagenames-regexp-cache-build-time)
-  ;;	     (nth 2 link-memo-pagenames-modify-time)))
   (if (or (null link-memo-pagenames-regexp-cache-build-time)
-	  (string< (format "%s%06d" ;; TODO: %06d と %08d どっちがただしのか... 要検討
+	  (string< (format "%s%06d" ;; TODO: %06d と %08d どっちが正しいのか... 要検討
 			   (format-time-string "%Y%m%d%H%M%S" link-memo-pagenames-regexp-cache-build-time)
 			   (nth 2 link-memo-pagenames-regexp-cache-build-time))
-		   (format "%s%06d" ;; TODO: %06d と %08d どっちがただしのか... 要検討
+		   (format "%s%06d" ;; TODO: %06d と %08d どっちが正しいのか... 要検討
 			   (format-time-string "%Y%m%d%H%M%S" link-memo-pagenames-modify-time)
 			   (nth 2 link-memo-pagenames-modify-time))))
       (let ((pagenames (link-memo-pagenames-upcase link-memo-pagenames)))
@@ -745,8 +731,7 @@ pageをフルパスに展開。
 
 ;; 開いた(find-file した)ファイルが link-memo-dir 内のファイルなら、
 ;; 自動的に link-memo-mode を有効にする。
-;; TODO: 複数回loadされたときの保護をしないと...
-;; TODO: そのためにはlambdaをやめて名前あり関数にして、hookに存在しない場合のみ追加するようにするのが正解か?
+;; TODO: 複数回loadされたときの保護をしないと... そのためにはlambdaをやめて名前あり関数にして、hookに存在しない場合のみ追加するようにするのが正解か?
 (add-hook 'find-file-hooks
 	  '(lambda ()
 	     (let ((dirs link-memo-dir)
@@ -760,8 +745,7 @@ pageをフルパスに展開。
 
 ;; 保存したファイルが link-memo-dir 内のファイルなら、
 ;; 自動的に link-memo-pagenames に追加する。
-;; TODO: 複数回loadされたときの保護をしないと...
-;; TODO: そのためにはlambdaをやめて名前あり関数にして、hookに存在しない場合のみ追加するようにするのが正解か?
+;; TODO: 複数回loadされたときの保護をしないと... そのためにはlambdaをやめて名前あり関数にして、hookに存在しない場合のみ追加するようにするのが正解か?
 (add-hook 'after-save-hook
 	  '(lambda ()
 	     (let ((dirs link-memo-dir)
