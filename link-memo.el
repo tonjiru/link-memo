@@ -380,7 +380,7 @@
   (link-memo-search (file-name-sans-extension(buffer-name))))
 
 (defun link-memo-is-valid-file (domain file)
-  (let (ext (cdr (assoc domain link-memo-extension-alist)))
+  (let ((ext (cdr (assoc domain link-memo-extension-alist))))
     (if (not ext) (setq ext link-memo-extension))
     (and (not (file-directory-p file)) ; ディレクトリを除外
 	 (string-match
